@@ -1,11 +1,12 @@
 --- semantic-bookmarks.nvim — public API and setup.
 local M = {}
 
-local config       = require("semantic-bookmarks.config")
-local anchoring    = require("semantic-bookmarks.anchoring")
-local store        = require("semantic-bookmarks.store")
+local config        = require("semantic-bookmarks.config")
+local anchoring     = require("semantic-bookmarks.anchoring")
+local store         = require("semantic-bookmarks.store")
 local visualization = require("semantic-bookmarks.visualization")
-local navigation   = require("semantic-bookmarks.navigation")
+local navigation    = require("semantic-bookmarks.navigation")
+local persistence   = require("semantic-bookmarks.persistence")
 
 --- Plugin entry point. Call this from your Neovim config:
 ---   require("semantic-bookmarks").setup({ ... })
@@ -15,6 +16,47 @@ function M.setup(opts)
   visualization.setup()
   M._register_keybindings()
   M._register_autocmds()
+  M._watch_git_branch()
+end
+
+--- Reload all state for the current branch and refresh every open buffer.
+local function on_branch_change(new_branch)
+  store.reset()
+  store.setup()
+
+  for _, bufnr in ipairs(vim.api.nvim_list_bufs()) do
+    if vim.api.nvim_buf_is_loaded(bufnr) then
+      local file = vim.api.nvim_buf_get_name(bufnr)
+      if file ~= "" then
+        store.hydrate_buffer(file, bufnr)
+        visualization.refresh_buffer(bufnr, store.get_for_buffer(bufnr))
+      end
+    end
+  end
+
+  vim.notify(
+    ("[semantic-bookmarks] Switched to branch '%s'"):format(new_branch),
+    vim.log.levels.INFO
+  )
+end
+
+--- Watch .git/HEAD for changes and trigger a branch switch when it updates.
+--- Does nothing in non-git directories.
+function M._watch_git_branch()
+  local root     = persistence.project_root()
+  local head_path = root .. "/.git/HEAD"
+  if vim.fn.filereadable(head_path) == 0 then return end
+
+  local current_branch = persistence.git_branch()
+
+  local watcher = vim.uv.new_fs_event()
+  watcher:start(head_path, {}, vim.schedule_wrap(function()
+    local new_branch = persistence.git_branch()
+    if new_branch ~= current_branch then
+      current_branch = new_branch
+      on_branch_change(new_branch)
+    end
+  end))
 end
 
 --- Reanchor all bookmarks in `bufnr` and persist if anything changed.
