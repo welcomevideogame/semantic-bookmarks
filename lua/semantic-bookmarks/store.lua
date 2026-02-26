@@ -98,6 +98,12 @@ function M.delete(id)
   return true
 end
 
+--- Flush the current in-memory store to disk. Call after external mutations
+--- (e.g. reanchoring) that bypass create/delete.
+function M.save()
+  persistence.save(bookmarks)
+end
+
 --- Retrieve a bookmark by id.
 function M.get(id)
   return bookmarks[id]

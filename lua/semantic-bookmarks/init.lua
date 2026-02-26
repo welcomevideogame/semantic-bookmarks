@@ -17,30 +17,107 @@ function M.setup(opts)
   M._register_autocmds()
 end
 
+--- Reanchor all bookmarks in `bufnr` and persist if anything changed.
+local function reanchor_buffer(bufnr)
+  local bms   = store.get_for_buffer(bufnr)
+  local dirty = false
+  for _, bm in ipairs(bms) do
+    local old_confidence = bm.confidence
+    local old_row        = bm.row
+    anchoring.reanchor(bm, bufnr)
+    if bm.confidence ~= old_confidence or bm.row ~= old_row then
+      dirty = true
+    end
+  end
+  if dirty then store.save() end
+end
+
 function M._register_autocmds()
   local augroup = vim.api.nvim_create_augroup("SemanticBookmarks", { clear = true })
 
-  -- Hydrate and visualize bookmarks whenever a buffer is entered.
+  -- Hydrate, reanchor, and visualize bookmarks whenever a buffer is entered.
   vim.api.nvim_create_autocmd("BufEnter", {
     group = augroup,
     callback = function(ev)
       local file = vim.api.nvim_buf_get_name(ev.buf)
       if file == "" then return end
       store.hydrate_buffer(file, ev.buf)
+      reanchor_buffer(ev.buf)
       visualization.refresh_buffer(ev.buf, store.get_for_buffer(ev.buf))
     end,
   })
 
-  -- Hydrate any buffers that were already open before setup() ran.
+  -- Hydrate and reanchor any buffers already open before setup() ran.
   for _, bufnr in ipairs(vim.api.nvim_list_bufs()) do
     if vim.api.nvim_buf_is_loaded(bufnr) then
       local file = vim.api.nvim_buf_get_name(bufnr)
       if file ~= "" then
         store.hydrate_buffer(file, bufnr)
+        reanchor_buffer(bufnr)
         visualization.refresh_buffer(bufnr, store.get_for_buffer(bufnr))
       end
     end
   end
+end
+
+--- Report on the health of all bookmarks across the project.
+function M.health()
+  local counts    = { exact = 0, probable = 0, weak = 0, lost = 0 }
+  local lost_list = {}
+
+  for _, bm in ipairs(store.get_all()) do
+    local c = bm.confidence or "exact"
+    counts[c] = (counts[c] or 0) + 1
+    if c == "lost" then table.insert(lost_list, bm) end
+  end
+
+  local lines = {
+    "SemanticBookmarks Health",
+    "========================",
+    ("  exact:    %d"):format(counts.exact),
+    ("  probable: %d"):format(counts.probable),
+    ("  weak:     %d"):format(counts.weak),
+    ("  lost:     %d"):format(counts.lost),
+  }
+
+  if #lost_list > 0 then
+    table.insert(lines, "")
+    table.insert(lines, "Lost bookmarks:")
+    for _, bm in ipairs(lost_list) do
+      table.insert(lines, ("  - %s  (%s)"):format(bm.label or "?", bm.file or "?"))
+    end
+  end
+
+  vim.notify(table.concat(lines, "\n"), vim.log.levels.INFO)
+end
+
+--- Manually re-run the resolution pipeline for all bookmarks in the current
+--- buffer and notify the user with a summary of what changed.
+function M.reanchor_cmd()
+  local bufnr = vim.api.nvim_get_current_buf()
+  local bms   = store.get_for_buffer(bufnr)
+
+  if #bms == 0 then
+    vim.notify("[semantic-bookmarks] No bookmarks in this buffer", vim.log.levels.INFO)
+    return
+  end
+
+  local changed = 0
+  for _, bm in ipairs(bms) do
+    local old_confidence = bm.confidence
+    local old_row        = bm.row
+    anchoring.reanchor(bm, bufnr)
+    if bm.confidence ~= old_confidence or bm.row ~= old_row then
+      changed = changed + 1
+    end
+  end
+
+  store.save()
+  visualization.refresh_buffer(bufnr, store.get_for_buffer(bufnr))
+  vim.notify(
+    ("[semantic-bookmarks] Reanchored %d bookmark(s) — %d updated"):format(#bms, changed),
+    vim.log.levels.INFO
+  )
 end
 
 function M._register_keybindings()

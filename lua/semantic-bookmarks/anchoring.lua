@@ -104,6 +104,159 @@ function M.get_fallback_context(bufnr, row, n)
   }
 end
 
+-- ─── Resolution pipeline ────────────────────────────────────────────────────
+
+--- Parse one segment of a structural address into a table:
+---   { node_type, name }  for "type:name"
+---   { node_type, idx  }  for "type[N]"
+local function parse_segment(seg)
+  local node_type, name = seg:match("^([^:%[]+):(.+)$")
+  if node_type then return { node_type = node_type, name = name } end
+  local nt, idx = seg:match("^([^%[]+)%[(%d+)%]$")
+  if nt then return { node_type = nt, idx = tonumber(idx) } end
+  return nil
+end
+
+--- Walk the tree top-down following a structural address.
+--- Returns the target node, or nil if any segment fails to match.
+function M.resolve_by_structural(bufnr, address)
+  if not address or address == "" then return nil end
+  local ok, parser = pcall(vim.treesitter.get_parser, bufnr)
+  if not ok or not parser then return nil end
+  local trees = parser:parse()
+  if not trees or not trees[1] then return nil end
+
+  local current = trees[1]:root()
+  for _, seg_str in ipairs(vim.split(address, " > ", { plain = true })) do
+    local seg = parse_segment(seg_str)
+    if not seg then return nil end
+
+    local found = nil
+    for i = 0, current:child_count() - 1 do
+      local child = current:child(i)
+      if child:type() == seg.node_type then
+        if seg.name then
+          if get_node_name(child, bufnr) == seg.name then
+            found = child
+            break
+          end
+        elseif seg.idx ~= nil and i == seg.idx then
+          found = child
+          break
+        end
+      end
+    end
+
+    if not found then return nil end
+    current = found
+  end
+
+  return current
+end
+
+--- DFS over all tree nodes looking for one whose fingerprint matches.
+--- Returns the first matching node, or nil.
+function M.resolve_by_fingerprint(bufnr, fingerprint)
+  if not fingerprint then return nil end
+  local ok, parser = pcall(vim.treesitter.get_parser, bufnr)
+  if not ok or not parser then return nil end
+  local trees = parser:parse()
+  if not trees or not trees[1] then return nil end
+
+  local function walk(node)
+    if M.compute_fingerprint(node, bufnr) == fingerprint then
+      return node
+    end
+    for i = 0, node:child_count() - 1 do
+      local result = walk(node:child(i))
+      if result then return result end
+    end
+  end
+
+  return walk(trees[1]:root())
+end
+
+--- Scan buffer lines for the best match to `fallback_context.line`.
+--- Exact match (after trimming) wins immediately; otherwise the line with
+--- the longest matching prefix covering ≥ 70 % of the target is returned.
+--- Returns a 0-indexed row, or nil if nothing is close enough.
+function M.resolve_by_fuzzy(bufnr, fallback_context)
+  if not fallback_context or not fallback_context.line then return nil end
+  local target = fallback_context.line:match("^%s*(.-)%s*$")
+  if target == "" then return nil end
+
+  local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+  local threshold = math.floor(#target * 0.7)
+  local best_row, best_score = nil, threshold
+
+  for i, line in ipairs(lines) do
+    local trimmed = line:match("^%s*(.-)%s*$")
+    if trimmed == target then
+      return i - 1 -- exact match, 0-indexed
+    end
+    local score = 0
+    for j = 1, math.min(#trimmed, #target) do
+      if trimmed:sub(j, j) == target:sub(j, j) then
+        score = score + 1
+      else
+        break
+      end
+    end
+    if score > best_score then
+      best_score = score
+      best_row   = i - 1
+    end
+  end
+
+  return best_row
+end
+
+--- Run the full resolution pipeline for a bookmark against the current buffer
+--- state. Mutates `bm` (row, col, node_end_row, confidence, structural_address)
+--- in place and returns the new confidence level.
+function M.reanchor(bm, bufnr)
+  if bm.has_treesitter then
+    -- Strategy 1: structural address → exact
+    if bm.structural_address then
+      local node = M.resolve_by_structural(bufnr, bm.structural_address)
+      if node then
+        local sr, sc, er = node:range()
+        bm.row          = sr
+        bm.col          = sc
+        bm.node_end_row = er
+        bm.confidence   = "exact"
+        return "exact"
+      end
+    end
+
+    -- Strategy 2: fingerprint → probable (structural address updated to new location)
+    if bm.fingerprint then
+      local node = M.resolve_by_fingerprint(bufnr, bm.fingerprint)
+      if node then
+        local sr, sc, er = node:range()
+        bm.row                = sr
+        bm.col                = sc
+        bm.node_end_row       = er
+        bm.structural_address = M.build_structural_address(node, bufnr)
+        bm.confidence         = "probable"
+        return "probable"
+      end
+    end
+  end
+
+  -- Strategy 3: fuzzy line match → weak
+  local row = M.resolve_by_fuzzy(bufnr, bm.fallback_context)
+  if row then
+    bm.row          = row
+    bm.node_end_row = row
+    bm.confidence   = "weak"
+    return "weak"
+  end
+
+  bm.confidence = "lost"
+  return "lost"
+end
+
 --- Resolve the cursor position (0-indexed row/col) to the most specific
 --- "meaningful" enclosing Treesitter node, as ordered by config.node_type_priority.
 ---
