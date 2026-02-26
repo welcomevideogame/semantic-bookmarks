@@ -57,6 +57,12 @@ function M.mark(label)
     node_end_row = er
   end
 
+  -- Prevent duplicates: if a bookmark already covers this position, bail out.
+  if store.find_at(bufnr, anchor_row) then
+    vim.notify("[semantic-bookmarks] Bookmark already exists here", vim.log.levels.WARN)
+    return
+  end
+
   local fallback = anchoring.get_fallback_context(bufnr, row, 3)
   local final_label = label or auto_label or ("line:" .. (row + 1))
 

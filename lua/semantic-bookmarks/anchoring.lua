@@ -148,13 +148,25 @@ function M.resolve_node(bufnr, row, col)
     current = current:parent()
   end
 
-  -- If no priority node found, fall back to the leaf itself (or its nearest
-  -- named ancestor).
+  -- If no priority type matched (e.g. the language uses different node type
+  -- names than our list), do a second walk looking for the nearest ancestor
+  -- that has a meaningful name child.  This is language-agnostic and handles
+  -- cases like Rust's `function_item` or Go's `function_declaration` not
+  -- being in the user's priority list.
+  if not best then
+    local cur = leaf
+    while cur and cur ~= root do
+      if get_node_name(cur, bufnr) then
+        best = cur
+        break
+      end
+      cur = cur:parent()
+    end
+  end
+
+  -- Last resort: the leaf itself (already a named node).
   if not best then
     best = leaf
-    while best and not best:is_named() do
-      best = best:parent()
-    end
   end
 
   return best, "ok"
