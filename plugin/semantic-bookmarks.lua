@@ -18,3 +18,11 @@ end, { desc = "Jump to the next bookmark in the current buffer" })
 vim.api.nvim_create_user_command("SBPrev", function()
   require("semantic-bookmarks.navigation").prev()
 end, { desc = "Jump to the previous bookmark in the current buffer" })
+
+vim.api.nvim_create_user_command("SBHealth", function()
+  require("semantic-bookmarks").health()
+end, { desc = "Report confidence levels for all bookmarks in the project" })
+
+vim.api.nvim_create_user_command("SBReanchor", function()
+  require("semantic-bookmarks").reanchor_cmd()
+end, { desc = "Re-run resolution pipeline for all bookmarks in the current buffer" })
