@@ -168,6 +168,41 @@ describe("store", function()
     end)
   end)
 
+  -- ── reset ─────────────────────────────────────────────────────────────────
+
+  describe("reset", function()
+    it("clears all bookmarks and indices", function()
+      store.create({ bufnr = 1, file = "/a.lua", row = 1, col = 0 })
+      store.create({ bufnr = 1, file = "/a.lua", row = 2, col = 0 })
+      assert.equals(2, #store.get_for_buffer(1))
+
+      store.reset()
+
+      assert.same({}, store.get_all())
+      assert.same({}, store.get_for_buffer(1))
+    end)
+
+    it("allows setup() to reload fresh data after a reset", function()
+      store.create({ bufnr = 1, file = "/a.lua", row = 1, col = 0 })
+      store.reset()
+
+      -- After reset, setup with mocked data loads cleanly
+      package.loaded["semantic-bookmarks.persistence"] = {
+        load = function()
+          return { { id = "fresh", file = "/b.lua", row = 5, col = 0,
+                     confidence = "exact", created_at = 0 } }
+        end,
+        save = function() end,
+      }
+      package.loaded["semantic-bookmarks.store"] = nil
+      store = require("semantic-bookmarks.store")
+      store.setup()
+
+      assert.equals(1, #store.get_all())
+      assert.equals("fresh", store.get_all()[1].id)
+    end)
+  end)
+
   -- ── hydrate_buffer ────────────────────────────────────────────────────────
 
   describe("hydrate_buffer", function()

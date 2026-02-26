@@ -12,6 +12,13 @@ local buf_index = {}
 -- File index (survives across sessions): { [file] = { [id] = true } }
 local file_index = {}
 
+--- Clear all in-memory state. Call before reloading a different branch's data.
+function M.reset()
+  bookmarks  = {}
+  buf_index  = {}
+  file_index = {}
+end
+
 --- Load persisted bookmarks for the current project into the in-memory store.
 --- Call once at plugin setup. Bookmarks are indexed by file; bufnr is not
 --- assigned yet — call hydrate_buffer() when a buffer is opened.
@@ -43,8 +50,10 @@ function M.hydrate_buffer(file, bufnr)
 end
 
 --- Generate a UUID v4-like identifier.
+--- Seeds from vim.uv.hrtime() (nanosecond precision) so rapid successive
+--- calls in tests don't collide the way os.time() (second precision) would.
 local function new_id()
-  math.randomseed(os.time() + math.random(1000))
+  math.randomseed(vim.uv.hrtime())
   local template = "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx"
   return (template:gsub("[xy]", function(c)
     local v = c == "x" and math.random(0, 0xf) or math.random(8, 0xb)

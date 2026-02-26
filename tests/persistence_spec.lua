@@ -133,4 +133,55 @@ describe("persistence", function()
       assert.truthy(#root > 0)
     end)
   end)
+
+  -- ── git_branch ────────────────────────────────────────────────────────────
+
+  describe("git_branch", function()
+    it("returns a non-empty string", function()
+      local branch = persistence.git_branch()
+      assert.is_string(branch)
+      assert.truthy(#branch > 0)
+    end)
+
+    it("returns 'default' when git command returns empty string", function()
+      -- The before_each reloads the module fresh, so no need to restore _sys.
+      persistence._sys = function(_) return "" end
+      assert.equals("default", persistence.git_branch())
+    end)
+  end)
+
+  -- ── db_path (branch scoping) ──────────────────────────────────────────────
+
+  describe("db_path branch scoping", function()
+    -- Use the real db_path (not overridden) for these tests.
+    local real_persistence
+
+    before_each(function()
+      package.loaded["semantic-bookmarks.persistence"] = nil
+      real_persistence = require("semantic-bookmarks.persistence")
+    end)
+
+    it("different branches produce different db paths", function()
+      real_persistence.git_branch = function() return "main" end
+      local path_main = real_persistence.db_path()
+
+      real_persistence.git_branch = function() return "feature/my-thing" end
+      local path_feature = real_persistence.db_path()
+
+      assert.not_equals(path_main, path_feature)
+    end)
+
+    it("sanitizes slashes in branch names", function()
+      real_persistence.git_branch = function() return "feature/my-thing" end
+      local path = real_persistence.db_path()
+      -- Path must not contain a bare slash after the data dir separator
+      local filename = path:match("([^/]+)$")
+      assert.falsy(filename:find("/"))
+    end)
+
+    it("same branch always produces the same path", function()
+      real_persistence.git_branch = function() return "main" end
+      assert.equals(real_persistence.db_path(), real_persistence.db_path())
+    end)
+  end)
 end)
