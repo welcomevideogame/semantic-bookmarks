@@ -83,8 +83,21 @@ function M.get_for_buffer(bufnr)
   return result
 end
 
+--- Find the bookmark whose anchor row is exactly `row`. Used for duplicate
+--- prevention when creating a new bookmark.
+--- Returns the match or nil.
+function M.find_exact(bufnr, row)
+  for _, bm in ipairs(M.get_for_buffer(bufnr)) do
+    if bm.row == row then
+      return bm
+    end
+  end
+  return nil
+end
+
 --- Find the bookmark at exactly `row`, or the innermost bookmark whose
---- node range [row, node_end_row] contains `row`.
+--- node range [row, node_end_row] contains `row`. Used for deletion so the
+--- cursor can be anywhere inside the bookmarked node.
 --- Returns the best match or nil.
 function M.find_at(bufnr, row)
   local buf_bms = M.get_for_buffer(bufnr)

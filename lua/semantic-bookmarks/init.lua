@@ -57,8 +57,8 @@ function M.mark(label)
     node_end_row = er
   end
 
-  -- Prevent duplicates: if a bookmark already covers this position, bail out.
-  if store.find_at(bufnr, anchor_row) then
+  -- Prevent duplicates: only block if another bookmark is anchored at the exact same row.
+  if store.find_exact(bufnr, anchor_row) then
     vim.notify("[semantic-bookmarks] Bookmark already exists here", vim.log.levels.WARN)
     return
   end
