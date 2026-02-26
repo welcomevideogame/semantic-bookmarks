@@ -11,8 +11,36 @@ local navigation   = require("semantic-bookmarks.navigation")
 ---   require("semantic-bookmarks").setup({ ... })
 function M.setup(opts)
   config.setup(opts)
+  store.setup()
   visualization.setup()
   M._register_keybindings()
+  M._register_autocmds()
+end
+
+function M._register_autocmds()
+  local augroup = vim.api.nvim_create_augroup("SemanticBookmarks", { clear = true })
+
+  -- Hydrate and visualize bookmarks whenever a buffer is entered.
+  vim.api.nvim_create_autocmd("BufEnter", {
+    group = augroup,
+    callback = function(ev)
+      local file = vim.api.nvim_buf_get_name(ev.buf)
+      if file == "" then return end
+      store.hydrate_buffer(file, ev.buf)
+      visualization.refresh_buffer(ev.buf, store.get_for_buffer(ev.buf))
+    end,
+  })
+
+  -- Hydrate any buffers that were already open before setup() ran.
+  for _, bufnr in ipairs(vim.api.nvim_list_bufs()) do
+    if vim.api.nvim_buf_is_loaded(bufnr) then
+      local file = vim.api.nvim_buf_get_name(bufnr)
+      if file ~= "" then
+        store.hydrate_buffer(file, bufnr)
+        visualization.refresh_buffer(bufnr, store.get_for_buffer(bufnr))
+      end
+    end
+  end
 end
 
 function M._register_keybindings()

@@ -1,12 +1,46 @@
---- In-memory bookmark store (Iteration 1).
---- Will be replaced with a SQLite backend in Iteration 2.
+--- Bookmark store with JSON persistence (Iteration 2).
 local M = {}
+
+local persistence = require("semantic-bookmarks.persistence")
 
 -- Primary store: { [id] = bookmark }
 local bookmarks = {}
 
--- Buffer index: { [bufnr] = { [id] = true } }
+-- Buffer index (session-only): { [bufnr] = { [id] = true } }
 local buf_index = {}
+
+-- File index (survives across sessions): { [file] = { [id] = true } }
+local file_index = {}
+
+--- Load persisted bookmarks for the current project into the in-memory store.
+--- Call once at plugin setup. Bookmarks are indexed by file; bufnr is not
+--- assigned yet — call hydrate_buffer() when a buffer is opened.
+function M.setup()
+  local records = persistence.load()
+  for _, record in ipairs(records) do
+    bookmarks[record.id] = record
+    local file = record.file
+    if file and file ~= "" then
+      if not file_index[file] then file_index[file] = {} end
+      file_index[file][record.id] = true
+    end
+  end
+end
+
+--- Assign a live bufnr to all bookmarks belonging to `file` and add them
+--- to the buffer index so the rest of the store API can find them.
+function M.hydrate_buffer(file, bufnr)
+  local ids = file_index[file]
+  if not ids then return end
+  if not buf_index[bufnr] then buf_index[bufnr] = {} end
+  for id in pairs(ids) do
+    local bm = bookmarks[id]
+    if bm then
+      bm.bufnr = bufnr
+      buf_index[bufnr][id] = true
+    end
+  end
+end
 
 --- Generate a UUID v4-like identifier.
 local function new_id()
@@ -36,6 +70,13 @@ function M.create(data)
   end
   buf_index[data.bufnr][id] = true
 
+  local file = data.file
+  if file and file ~= "" then
+    if not file_index[file] then file_index[file] = {} end
+    file_index[file][id] = true
+  end
+
+  persistence.save(bookmarks)
   return bookmark
 end
 
@@ -44,11 +85,16 @@ function M.delete(id)
   local bm = bookmarks[id]
   if not bm then return false end
 
-  if buf_index[bm.bufnr] then
+  if bm.bufnr and buf_index[bm.bufnr] then
     buf_index[bm.bufnr][id] = nil
   end
 
+  if bm.file and file_index[bm.file] then
+    file_index[bm.file][id] = nil
+  end
+
   bookmarks[id] = nil
+  persistence.save(bookmarks)
   return true
 end
 
