@@ -35,6 +35,10 @@ vim.api.nvim_create_user_command("SBGroup", function(opts)
   require("semantic-bookmarks").set_group(opts.args)
 end, { nargs = "?", desc = "Assign (or clear) a group tag on the bookmark at cursor" })
 
+vim.api.nvim_create_user_command("SBRename", function(opts)
+  require("semantic-bookmarks").rename(opts.args)
+end, { nargs = 1, desc = "Rename the bookmark at cursor" })
+
 vim.api.nvim_create_user_command("SBQuickfix", function(opts)
   require("semantic-bookmarks").to_quickfix(opts.args ~= "" and opts.args or nil)
 end, { nargs = "?", desc = "Send bookmarks to quickfix list (optional: group filter)" })

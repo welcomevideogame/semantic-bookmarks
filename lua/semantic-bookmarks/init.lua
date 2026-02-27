@@ -303,6 +303,49 @@ function M.to_quickfix(group_name)
   )
 end
 
+--- Rename the bookmark at (or containing) the current cursor position.
+function M.rename(new_label)
+  if not new_label or new_label == "" then
+    vim.notify("[semantic-bookmarks] Rename requires a label", vim.log.levels.WARN)
+    return
+  end
+
+  local bufnr = vim.api.nvim_get_current_buf()
+  local row   = vim.api.nvim_win_get_cursor(0)[1] - 1
+
+  local bm = store.find_at(bufnr, row)
+  if not bm then
+    vim.notify("[semantic-bookmarks] No bookmark at cursor", vim.log.levels.WARN)
+    return
+  end
+
+  local old_label = bm.label
+  bm.label = new_label
+  store.save()
+  visualization.refresh_buffer(bufnr, store.get_for_buffer(bufnr))
+  vim.notify(
+    ("[semantic-bookmarks] Renamed: %s → %s"):format(old_label or "?", new_label),
+    vim.log.levels.INFO
+  )
+end
+
+--- Return a statusline string for the current buffer.
+--- Shows bookmark count; highlights lost bookmarks separately.
+--- Returns "" when the buffer has no bookmarks (hides cleanly in statusline).
+--- Examples: "● 3"  or  "● 2 ✗1"
+function M.statusline()
+  local bufnr = vim.api.nvim_get_current_buf()
+  local bms   = store.get_for_buffer(bufnr)
+  if #bms == 0 then return "" end
+  local lost = 0
+  for _, bm in ipairs(bms) do
+    if bm.confidence == "lost" then lost = lost + 1 end
+  end
+  local s = ("● %d"):format(#bms)
+  if lost > 0 then s = s .. (" ✗%d"):format(lost) end
+  return s
+end
+
 --- Delete the bookmark at (or containing) the current cursor position.
 function M.delete()
   local bufnr = vim.api.nvim_get_current_buf()
