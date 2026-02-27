@@ -11,6 +11,9 @@ M.defaults = {
     trail_toggle  = "<leader>bT",
     trail_back    = "<leader>b[",
     trail_forward = "<leader>b]",
+    next_global   = "<leader>bN",
+    prev_global   = "<leader>bP",
+    recent        = "<leader>br",
   },
   -- Picker backend: "auto" | "telescope" | "fzf-lua"
   -- "auto" tries telescope first, then fzf-lua.

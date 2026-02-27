@@ -113,6 +113,15 @@ function M.save()
   persistence.save(bookmarks)
 end
 
+--- Stamp `last_visited_at` on a bookmark and persist.
+--- Call whenever the user navigates to a bookmark.
+function M.touch(id)
+  local bm = bookmarks[id]
+  if not bm then return end
+  bm.last_visited_at = os.time()
+  persistence.save(bookmarks)
+end
+
 --- Retrieve a bookmark by id.
 function M.get(id)
   return bookmarks[id]

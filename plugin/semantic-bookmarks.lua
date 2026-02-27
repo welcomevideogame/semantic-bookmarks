@@ -11,13 +11,15 @@ vim.api.nvim_create_user_command("SBDelete", function()
   require("semantic-bookmarks").delete()
 end, { desc = "Delete the semantic bookmark at (or containing) the cursor" })
 
-vim.api.nvim_create_user_command("SBNext", function()
-  require("semantic-bookmarks.navigation").next()
-end, { desc = "Jump to the next bookmark in the current buffer" })
+vim.api.nvim_create_user_command("SBNext", function(opts)
+  local nav = require("semantic-bookmarks.navigation")
+  if opts.bang then nav.next_global() else nav.next() end
+end, { bang = true, desc = "Next bookmark in buffer (! = across all files)" })
 
-vim.api.nvim_create_user_command("SBPrev", function()
-  require("semantic-bookmarks.navigation").prev()
-end, { desc = "Jump to the previous bookmark in the current buffer" })
+vim.api.nvim_create_user_command("SBPrev", function(opts)
+  local nav = require("semantic-bookmarks.navigation")
+  if opts.bang then nav.prev_global() else nav.prev() end
+end, { bang = true, desc = "Prev bookmark in buffer (! = across all files)" })
 
 vim.api.nvim_create_user_command("SBHealth", function()
   require("semantic-bookmarks").health()
@@ -30,6 +32,10 @@ end, { desc = "Re-run resolution pipeline for all bookmarks in the current buffe
 vim.api.nvim_create_user_command("SBList", function(opts)
   require("semantic-bookmarks").list(opts.args ~= "" and opts.args or nil)
 end, { nargs = "?", desc = "Open semantic bookmark picker (optional: group filter)" })
+
+vim.api.nvim_create_user_command("SBRecent", function(opts)
+  require("semantic-bookmarks").list_recent(opts.args ~= "" and opts.args or nil)
+end, { nargs = "?", desc = "Open picker sorted by most recently visited (optional: group filter)" })
 
 vim.api.nvim_create_user_command("SBGroup", function(opts)
   require("semantic-bookmarks").set_group(opts.args)

@@ -40,6 +40,7 @@ local function jump_to(bm)
   require("semantic-bookmarks.trail").record()
   vim.cmd("edit " .. vim.fn.fnameescape(bm.file))
   vim.api.nvim_win_set_cursor(0, { bm.row + 1, bm.col or 0 })
+  require("semantic-bookmarks.store").touch(bm.id)
   -- Schedule so the buffer is fully rendered before flashing.
   vim.schedule(function()
     require("semantic-bookmarks.visualization").flash(
@@ -229,6 +230,8 @@ end
 
 --- Open the bookmark picker.
 --- opts.group (string|nil): filter to this group tag only.
+--- opts.sort  ("file"|"recent"): "file" = file+row order (default);
+---            "recent" = most recently visited first.
 function M.open(opts)
   opts        = opts or {}
   local store = require("semantic-bookmarks.store")
@@ -247,10 +250,16 @@ function M.open(opts)
     return
   end
 
-  table.sort(bms, function(a, b)
-    if a.file ~= b.file then return (a.file or "") < (b.file or "") end
-    return (a.row or 0) < (b.row or 0)
-  end)
+  if opts.sort == "recent" then
+    table.sort(bms, function(a, b)
+      return (a.last_visited_at or 0) > (b.last_visited_at or 0)
+    end)
+  else
+    table.sort(bms, function(a, b)
+      if a.file ~= b.file then return (a.file or "") < (b.file or "") end
+      return (a.row or 0) < (b.row or 0)
+    end)
+  end
 
   local backend = get_backend()
   if backend == "telescope" then
