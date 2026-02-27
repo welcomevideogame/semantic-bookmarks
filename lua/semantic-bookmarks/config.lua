@@ -6,7 +6,15 @@ M.defaults = {
     delete = "<leader>bd",
     next   = "<leader>bn",
     prev   = "<leader>bp",
+    list          = "<leader>bl",
+    quickfix      = "<leader>bq",
+    trail_toggle  = "<leader>bT",
+    trail_back    = "<leader>b[",
+    trail_forward = "<leader>b]",
   },
+  -- Picker backend: "auto" | "telescope" | "fzf-lua"
+  -- "auto" tries telescope first, then fzf-lua.
+  picker = "auto",
   signs = {
     exact    = { text = "●", hl = "DiagnosticInfo" },
     probable = { text = "◐", hl = "DiagnosticWarn" },

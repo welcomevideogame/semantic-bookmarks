@@ -2,6 +2,7 @@
 local M = {}
 
 local store = require("semantic-bookmarks.store")
+local trail = require("semantic-bookmarks.trail")
 
 --- Jump to the next bookmark in the current buffer (wraps around).
 function M.next(bufnr)
@@ -17,6 +18,7 @@ function M.next(bufnr)
   local bm = store.find_next(bufnr, row)
   if not bm then return end
 
+  trail.record()
   vim.api.nvim_win_set_cursor(0, { bm.row + 1, bm.col })
   vim.notify("[semantic-bookmarks] " .. (bm.label or "bookmark"), vim.log.levels.INFO)
 end
@@ -35,6 +37,7 @@ function M.prev(bufnr)
   local bm = store.find_prev(bufnr, row)
   if not bm then return end
 
+  trail.record()
   vim.api.nvim_win_set_cursor(0, { bm.row + 1, bm.col })
   vim.notify("[semantic-bookmarks] " .. (bm.label or "bookmark"), vim.log.levels.INFO)
 end
