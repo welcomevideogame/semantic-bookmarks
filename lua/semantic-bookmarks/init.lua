@@ -186,9 +186,12 @@ function M._register_keybindings()
   map(kb.prev,          function() navigation.prev() end,     "Semantic bookmark: prev in buffer")
   map(kb.list,          function() M.list() end,              "Semantic bookmark: open picker")
   map(kb.quickfix,      function() M.to_quickfix() end,       "Semantic bookmark: send to quickfix")
-  map(kb.trail_toggle,  function() trail.toggle() end,        "Semantic bookmark: toggle trail recording")
-  map(kb.trail_back,    function() trail.back() end,          "Semantic bookmark: trail back")
-  map(kb.trail_forward, function() trail.forward() end,       "Semantic bookmark: trail forward")
+  map(kb.trail_toggle,  function() trail.toggle() end,             "Semantic bookmark: toggle trail recording")
+  map(kb.trail_back,    function() trail.back() end,               "Semantic bookmark: trail back")
+  map(kb.trail_forward, function() trail.forward() end,            "Semantic bookmark: trail forward")
+  map(kb.next_global,   function() navigation.next_global() end,   "Semantic bookmark: next across all files")
+  map(kb.prev_global,   function() navigation.prev_global() end,   "Semantic bookmark: prev across all files")
+  map(kb.recent,        function() M.list_recent() end,            "Semantic bookmark: open recent picker")
 end
 
 --- Create a bookmark at the current cursor position.
@@ -249,11 +252,21 @@ function M.mark(label)
   return bm
 end
 
---- Open the bookmark picker.
+--- Open the bookmark picker sorted by file+row.
 --- group_name (string|nil): restrict to a specific group tag.
 function M.list(group_name)
   local picker = require("semantic-bookmarks.picker")
   picker.open({ group = (group_name ~= nil and group_name ~= "") and group_name or nil })
+end
+
+--- Open the bookmark picker sorted by most recently visited first.
+--- group_name (string|nil): restrict to a specific group tag.
+function M.list_recent(group_name)
+  local picker = require("semantic-bookmarks.picker")
+  picker.open({
+    sort  = "recent",
+    group = (group_name ~= nil and group_name ~= "") and group_name or nil,
+  })
 end
 
 --- Assign (or clear) a group tag on the bookmark at the current cursor.
