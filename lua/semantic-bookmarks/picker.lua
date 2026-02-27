@@ -130,7 +130,7 @@ local function open_telescope(bms)
   })
 
   pickers.new({}, {
-    prompt_title = "Semantic Bookmarks  [<C-d> delete · <C-g> group]",
+    prompt_title = "Semantic Bookmarks  [<C-d> delete · <C-g> group · <C-r> rename]",
     finder   = make_finder(),
     sorter   = conf.generic_sorter({}),
     previewer = previewer,
@@ -164,6 +164,20 @@ local function open_telescope(bms)
         local bm = sel.value
         actions.close(prompt_bufnr)
         vim.schedule(function() prompt_group(bm) end)
+      end)
+
+      -- <C-r>: rename label in place, refresh picker.
+      map({ "i", "n" }, "<C-r>", function()
+        local sel = action_state.get_selected_entry()
+        if not sel then return end
+        local bm      = sel.value
+        local new_label = vim.fn.input("Rename: ", bm.label)
+        if new_label == "" or new_label == bm.label then return end
+        bm.label = new_label
+        require("semantic-bookmarks.store").save()
+        action_state.get_current_picker(prompt_bufnr):refresh(
+          make_finder(), { reset_prompt = false }
+        )
       end)
 
       return true
@@ -206,6 +220,19 @@ local function open_fzf(bms)
         local bm = entry_map[selected[1]]
         if not bm then return end
         vim.schedule(function() prompt_group(bm) end)
+      end,
+      ["ctrl-r"] = function(selected)
+        if not (selected and selected[1]) then return end
+        local bm = entry_map[selected[1]]
+        if not bm then return end
+        vim.schedule(function()
+          local new_label = vim.fn.input("Rename: ", bm.label)
+          if new_label ~= "" and new_label ~= bm.label then
+            bm.label = new_label
+            require("semantic-bookmarks.store").save()
+            open_fzf(bms)
+          end
+        end)
       end,
     },
   })
