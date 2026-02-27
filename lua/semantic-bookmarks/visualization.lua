@@ -3,6 +3,34 @@ local M = {}
 
 local config = require("semantic-bookmarks.config")
 
+-- Maps Treesitter node types (across languages) to icon category keys.
+local NODE_CATEGORY = {
+  -- functions
+  function_definition   = "func",  function_declaration  = "func",
+  function_item         = "func",  func_declaration      = "func",
+  func_literal          = "func",  local_function        = "func",
+  arrow_function        = "func",  anonymous_function    = "func",
+  -- methods
+  method_definition     = "method", method_declaration   = "method",
+  -- classes
+  class_definition      = "class",  class_declaration    = "class",
+  -- structs
+  struct_item           = "struct", struct_type          = "struct",
+  struct_declaration    = "struct",
+  -- interfaces / traits
+  interface_declaration = "interface", trait_item         = "interface",
+  protocol_declaration  = "interface",
+  -- enums
+  enum_item             = "enum",   enum_declaration     = "enum",
+  enum_definition       = "enum",
+  -- modules / namespaces
+  module                = "module", module_declaration   = "module",
+  namespace_declaration = "module",
+  -- control flow
+  if_statement          = "control", for_statement       = "control",
+  while_statement       = "control", do_statement        = "control",
+}
+
 local SIGN_GROUP = "SemanticBookmarks"
 local NS         = vim.api.nvim_create_namespace("semantic_bookmarks")
 local FLASH_NS   = vim.api.nvim_create_namespace("semantic_bookmarks_flash")
@@ -77,17 +105,25 @@ local function place_one(bufnr, bm, index)
   })
 
   if config.options.virtual_text and bm.label then
-    -- Strip the auto-generated "node_type:" prefix so we display just the
-    -- name. Old bookmarks stored "function_item:recv"; new ones store "recv".
-    -- Manual labels (e.g. "my note") have no lowercase_type: prefix.
+    -- Strip legacy "node_type:" prefix (old bookmarks); new ones store just the name.
     local name = bm.label:match("^[a-z][a-z_]*:(.+)$") or bm.label
+
+    -- Look up the type icon for this node (nil-safe; old bookmarks have no node_type).
+    local type_icon = ""
+    if bm.node_type then
+      local category = NODE_CATEGORY[bm.node_type]
+      if category then
+        local icons = config.options.type_icons or {}
+        type_icon = (icons[category] or "") .. " "
+      end
+    end
 
     local icon_hl = (config.options.signs[bm.confidence or "exact"] or {}).hl
                     or "SBSignExact"
     vim.api.nvim_buf_set_extmark(bufnr, NS, bm.row, 0, {
       virt_text = {
-        { "  ❯ ", icon_hl    },
-        { name,   "SBVirtText" },
+        { "  ❯ " .. type_icon, icon_hl      },
+        { name,                "SBVirtText"  },
       },
       virt_text_pos = "eol",
     })

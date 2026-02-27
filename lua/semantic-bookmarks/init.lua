@@ -208,10 +208,12 @@ function M.mark(label)
   local anchor_col         = col
   local node_end_row       = row
 
+  local node_type = nil
   if node and status == "ok" then
     structural_address = anchoring.build_structural_address(node, bufnr)
     fingerprint        = anchoring.compute_fingerprint(node, bufnr)
     auto_label         = anchoring.get_node_label(node, bufnr)
+    node_type          = node:type()
 
     local sr, sc, er = node:range()
     anchor_row   = sr
@@ -239,6 +241,7 @@ function M.mark(label)
     fingerprint        = fingerprint,
     fallback_context   = fallback,
     has_treesitter     = (status == "ok"),
+    node_type          = node_type,
   })
 
   visualization.refresh_buffer(bufnr, store.get_for_buffer(bufnr))
