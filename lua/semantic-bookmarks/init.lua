@@ -170,10 +170,16 @@ function M._register_keybindings()
     end
   end
 
-  map(kb.mark,   function() M.mark() end,      "Semantic bookmark: create")
-  map(kb.delete, function() M.delete() end,    "Semantic bookmark: delete")
-  map(kb.next,   function() navigation.next() end, "Semantic bookmark: next in buffer")
-  map(kb.prev,   function() navigation.prev() end, "Semantic bookmark: prev in buffer")
+  local trail = require("semantic-bookmarks.trail")
+  map(kb.mark,          function() M.mark() end,              "Semantic bookmark: create")
+  map(kb.delete,        function() M.delete() end,            "Semantic bookmark: delete")
+  map(kb.next,          function() navigation.next() end,     "Semantic bookmark: next in buffer")
+  map(kb.prev,          function() navigation.prev() end,     "Semantic bookmark: prev in buffer")
+  map(kb.list,          function() M.list() end,              "Semantic bookmark: open picker")
+  map(kb.quickfix,      function() M.to_quickfix() end,       "Semantic bookmark: send to quickfix")
+  map(kb.trail_toggle,  function() trail.toggle() end,        "Semantic bookmark: toggle trail recording")
+  map(kb.trail_back,    function() trail.back() end,          "Semantic bookmark: trail back")
+  map(kb.trail_forward, function() trail.forward() end,       "Semantic bookmark: trail forward")
 end
 
 --- Create a bookmark at the current cursor position.
@@ -229,6 +235,72 @@ function M.mark(label)
   visualization.refresh_buffer(bufnr, store.get_for_buffer(bufnr))
   vim.notify("[semantic-bookmarks] Created: " .. bm.label, vim.log.levels.INFO)
   return bm
+end
+
+--- Open the bookmark picker.
+--- group_name (string|nil): restrict to a specific group tag.
+function M.list(group_name)
+  local picker = require("semantic-bookmarks.picker")
+  picker.open({ group = (group_name ~= nil and group_name ~= "") and group_name or nil })
+end
+
+--- Assign (or clear) a group tag on the bookmark at the current cursor.
+--- group_name == "" or nil clears the group.
+function M.set_group(group_name)
+  local bufnr = vim.api.nvim_get_current_buf()
+  local row   = vim.api.nvim_win_get_cursor(0)[1] - 1
+
+  local bm = store.find_at(bufnr, row)
+  if not bm then
+    vim.notify("[semantic-bookmarks] No bookmark at cursor", vim.log.levels.WARN)
+    return
+  end
+
+  bm.group = (group_name ~= nil and group_name ~= "") and group_name or nil
+  store.save()
+  vim.notify(
+    bm.group and ("[semantic-bookmarks] Group set: " .. bm.group)
+             or  "[semantic-bookmarks] Group cleared",
+    vim.log.levels.INFO
+  )
+end
+
+--- Populate the quickfix list with all (or group-filtered) bookmarks.
+--- group_name (string|nil): restrict to a specific group tag.
+function M.to_quickfix(group_name)
+  local bms = store.get_all()
+
+  if group_name and group_name ~= "" then
+    local filtered = {}
+    for _, bm in ipairs(bms) do
+      if bm.group == group_name then
+        filtered[#filtered + 1] = bm
+      end
+    end
+    bms = filtered
+  end
+
+  table.sort(bms, function(a, b)
+    if a.file ~= b.file then return (a.file or "") < (b.file or "") end
+    return (a.row or 0) < (b.row or 0)
+  end)
+
+  local qf_items = {}
+  for _, bm in ipairs(bms) do
+    qf_items[#qf_items + 1] = {
+      filename = bm.file,
+      lnum     = (bm.row or 0) + 1,
+      col      = (bm.col or 0) + 1,
+      text     = bm.label or "bookmark",
+    }
+  end
+
+  vim.fn.setqflist(qf_items, "r")
+  vim.cmd("copen")
+  vim.notify(
+    ("[semantic-bookmarks] Quickfix: %d bookmark(s)"):format(#qf_items),
+    vim.log.levels.INFO
+  )
 end
 
 --- Delete the bookmark at (or containing) the current cursor position.

@@ -26,3 +26,27 @@ end, { desc = "Report confidence levels for all bookmarks in the project" })
 vim.api.nvim_create_user_command("SBReanchor", function()
   require("semantic-bookmarks").reanchor_cmd()
 end, { desc = "Re-run resolution pipeline for all bookmarks in the current buffer" })
+
+vim.api.nvim_create_user_command("SBList", function(opts)
+  require("semantic-bookmarks").list(opts.args ~= "" and opts.args or nil)
+end, { nargs = "?", desc = "Open semantic bookmark picker (optional: group filter)" })
+
+vim.api.nvim_create_user_command("SBGroup", function(opts)
+  require("semantic-bookmarks").set_group(opts.args)
+end, { nargs = "?", desc = "Assign (or clear) a group tag on the bookmark at cursor" })
+
+vim.api.nvim_create_user_command("SBQuickfix", function(opts)
+  require("semantic-bookmarks").to_quickfix(opts.args ~= "" and opts.args or nil)
+end, { nargs = "?", desc = "Send bookmarks to quickfix list (optional: group filter)" })
+
+vim.api.nvim_create_user_command("SBTrail", function()
+  require("semantic-bookmarks.trail").toggle()
+end, { desc = "Toggle trail recording for bookmark navigation" })
+
+vim.api.nvim_create_user_command("SBTrailBack", function()
+  require("semantic-bookmarks.trail").back()
+end, { desc = "Navigate back along the bookmark trail" })
+
+vim.api.nvim_create_user_command("SBTrailForward", function()
+  require("semantic-bookmarks.trail").forward()
+end, { desc = "Navigate forward along the bookmark trail" })
