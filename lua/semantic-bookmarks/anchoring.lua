@@ -59,13 +59,12 @@ function M.build_structural_address(node, bufnr)
   return table.concat(parts, " > ")
 end
 
---- Return a short human-readable label for a node, e.g. "function_definition:processData".
+--- Return a short human-readable label for a node.
+--- Returns just the identifier name (e.g. "processData") when one exists,
+--- falling back to the node type only when there is no name child.
 function M.get_node_label(node, bufnr)
   local name = get_node_name(node, bufnr)
-  if name then
-    return node:type() .. ":" .. name
-  end
-  return node:type()
+  return name or node:type()
 end
 
 --- Compute a simple polynomial hash of the node's text content.

@@ -77,13 +77,17 @@ local function place_one(bufnr, bm, index)
   })
 
   if config.options.virtual_text and bm.label then
-    -- Two segments: a confidence-coloured arrow then the label in SBVirtText.
+    -- Strip the auto-generated "node_type:" prefix so we display just the
+    -- name. Old bookmarks stored "function_item:recv"; new ones store "recv".
+    -- Manual labels (e.g. "my note") have no lowercase_type: prefix.
+    local name = bm.label:match("^[a-z][a-z_]*:(.+)$") or bm.label
+
     local icon_hl = (config.options.signs[bm.confidence or "exact"] or {}).hl
                     or "SBSignExact"
     vim.api.nvim_buf_set_extmark(bufnr, NS, bm.row, 0, {
       virt_text = {
-        { "  ❯ ", icon_hl      },
-        { bm.label, "SBVirtText" },
+        { "  ❯ ", icon_hl    },
+        { name,   "SBVirtText" },
       },
       virt_text_pos = "eol",
     })

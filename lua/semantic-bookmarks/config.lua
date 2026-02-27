@@ -20,7 +20,7 @@ M.defaults = {
   numbered_signs = false,
   -- Show a floating detail window (label, group, confidence, location) when
   -- the cursor rests on a bookmarked line in normal mode (CursorHold).
-  hover = true,
+  hover = false,
   signs = {
     exact    = { text = "●", hl = "SBSignExact" },
     probable = { text = "◐", hl = "SBSignProbable" },
