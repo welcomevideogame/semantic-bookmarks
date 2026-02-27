@@ -40,6 +40,12 @@ local function jump_to(bm)
   require("semantic-bookmarks.trail").record()
   vim.cmd("edit " .. vim.fn.fnameescape(bm.file))
   vim.api.nvim_win_set_cursor(0, { bm.row + 1, bm.col or 0 })
+  -- Schedule so the buffer is fully rendered before flashing.
+  vim.schedule(function()
+    require("semantic-bookmarks.visualization").flash(
+      vim.api.nvim_get_current_buf(), bm.row
+    )
+  end)
 end
 
 --- Delete bm from the store and remove it from the shared bms list.
@@ -92,9 +98,11 @@ end
 local function open_telescope(bms)
   local pickers      = require("telescope.pickers")
   local finders      = require("telescope.finders")
+  local previewers   = require("telescope.previewers")
   local conf         = require("telescope.config").values
   local actions      = require("telescope.actions")
   local action_state = require("telescope.actions.state")
+  local vis          = require("semantic-bookmarks.visualization")
 
   local function make_finder()
     return finders.new_table({
@@ -106,10 +114,25 @@ local function open_telescope(bms)
     })
   end
 
+  local previewer = previewers.new_buffer_previewer({
+    title = "Bookmark Preview",
+    define_preview = function(self, entry)
+      local bm = entry.value
+      conf.buffer_previewer_maker(bm.file, self.state.bufnr, {
+        bufname  = self.state.bufname,
+        winid    = self.state.winid,
+        callback = function(pbufnr)
+          vis.apply_preview_highlight(pbufnr, self.state.winid, bm.row)
+        end,
+      })
+    end,
+  })
+
   pickers.new({}, {
     prompt_title = "Semantic Bookmarks  [<C-d> delete · <C-g> group]",
-    finder  = make_finder(),
-    sorter  = conf.generic_sorter({}),
+    finder   = make_finder(),
+    sorter   = conf.generic_sorter({}),
+    previewer = previewer,
     attach_mappings = function(prompt_bufnr, map)
       -- <CR>: jump to bookmark.
       actions.select_default:replace(function()

@@ -15,11 +15,17 @@ M.defaults = {
   -- Picker backend: "auto" | "telescope" | "fzf-lua"
   -- "auto" tries telescope first, then fzf-lua.
   picker = "auto",
+  -- Show 1, 2, 3 … in the sign column instead of the confidence icon.
+  -- The confidence colour is still applied via the sign highlight.
+  numbered_signs = false,
+  -- Show a floating detail window (label, group, confidence, location) when
+  -- the cursor rests on a bookmarked line in normal mode (CursorHold).
+  hover = true,
   signs = {
-    exact    = { text = "●", hl = "DiagnosticInfo" },
-    probable = { text = "◐", hl = "DiagnosticWarn" },
-    weak     = { text = "◌", hl = "DiagnosticWarn" },
-    lost     = { text = "✗", hl = "DiagnosticError" },
+    exact    = { text = "●", hl = "SBSignExact" },
+    probable = { text = "◐", hl = "SBSignProbable" },
+    weak     = { text = "◌", hl = "SBSignWeak" },
+    lost     = { text = "✗", hl = "SBSignLost" },
   },
   virtual_text = true,
   -- Ordered list of node types to prefer when anchoring.

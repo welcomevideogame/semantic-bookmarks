@@ -3,6 +3,7 @@ local M = {}
 
 local store = require("semantic-bookmarks.store")
 local trail = require("semantic-bookmarks.trail")
+local vis   = require("semantic-bookmarks.visualization")
 
 --- Jump to the next bookmark in the current buffer (wraps around).
 function M.next(bufnr)
@@ -20,6 +21,7 @@ function M.next(bufnr)
 
   trail.record()
   vim.api.nvim_win_set_cursor(0, { bm.row + 1, bm.col })
+  vis.flash(bufnr, bm.row)
   vim.notify("[semantic-bookmarks] " .. (bm.label or "bookmark"), vim.log.levels.INFO)
 end
 
@@ -39,6 +41,7 @@ function M.prev(bufnr)
 
   trail.record()
   vim.api.nvim_win_set_cursor(0, { bm.row + 1, bm.col })
+  vis.flash(bufnr, bm.row)
   vim.notify("[semantic-bookmarks] " .. (bm.label or "bookmark"), vim.log.levels.INFO)
 end
 

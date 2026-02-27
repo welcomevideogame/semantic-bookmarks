@@ -77,6 +77,15 @@ end
 function M._register_autocmds()
   local augroup = vim.api.nvim_create_augroup("SemanticBookmarks", { clear = true })
 
+  -- Floating hover detail when cursor rests on a bookmarked line.
+  vim.api.nvim_create_autocmd("CursorHold", {
+    group = augroup,
+    callback = function(ev)
+      local row = vim.api.nvim_win_get_cursor(0)[1] - 1
+      visualization.show_hover(ev.buf, row)
+    end,
+  })
+
   -- Hydrate, reanchor, and visualize bookmarks whenever a buffer is entered.
   vim.api.nvim_create_autocmd("BufEnter", {
     group = augroup,
