@@ -328,6 +328,48 @@ function M.to_quickfix(group_name)
   )
 end
 
+--- Bulk-delete all bookmarks, optionally filtered to a group.
+--- Prompts for confirmation before deleting.
+function M.clear(group_name)
+  local bms = store.get_all()
+
+  if group_name and group_name ~= "" then
+    local filtered = {}
+    for _, bm in ipairs(bms) do
+      if bm.group == group_name then filtered[#filtered + 1] = bm end
+    end
+    bms = filtered
+  end
+
+  if #bms == 0 then
+    vim.notify("[semantic-bookmarks] No bookmarks to clear", vim.log.levels.INFO)
+    return
+  end
+
+  local scope = (group_name and group_name ~= "")
+    and (' in group "' .. group_name .. '"') or ""
+  local choice = vim.fn.confirm(
+    ("Clear %d bookmark(s)%s?"):format(#bms, scope),
+    "&Yes\n&No", 2
+  )
+  if choice ~= 1 then return end
+
+  for _, bm in ipairs(bms) do
+    store.delete(bm.id)
+  end
+
+  for _, bufnr in ipairs(vim.api.nvim_list_bufs()) do
+    if vim.api.nvim_buf_is_loaded(bufnr) then
+      visualization.refresh_buffer(bufnr, store.get_for_buffer(bufnr))
+    end
+  end
+
+  vim.notify(
+    ("[semantic-bookmarks] Cleared %d bookmark(s)%s"):format(#bms, scope),
+    vim.log.levels.INFO
+  )
+end
+
 --- Rename the bookmark at (or containing) the current cursor position.
 function M.rename(new_label)
   if not new_label or new_label == "" then

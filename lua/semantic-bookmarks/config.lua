@@ -30,6 +30,9 @@ M.defaults = {
     module    = "󰏗",
     control   = "󰅂",
   },
+  -- Sign column priority. Raise this above LSP/diagnostic signs (default 10-11)
+  -- if bookmark signs are being hidden. E.g. set to 20 to always win.
+  sign_priority = 10,
   -- Show 1, 2, 3 … in the sign column instead of the confidence icon.
   -- The confidence colour is still applied via the sign highlight.
   numbered_signs = false,

@@ -101,7 +101,7 @@ local function place_one(bufnr, bm, index)
 
   vim.fn.sign_place(0, SIGN_GROUP, sign_name, bufnr, {
     lnum     = lnum,
-    priority = 10,
+    priority = config.options.sign_priority or 10,
   })
 
   if config.options.virtual_text and bm.label then
