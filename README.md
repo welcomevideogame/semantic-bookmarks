@@ -32,11 +32,25 @@ Structural bookmarks for Neovim, anchored to **Treesitter nodes** rather than li
 ```lua
 {
   "welcomevideogame/semantic-bookmarks.nvim",
+  cmd = {
+    "SBMark", "SBDelete", "SBNext", "SBPrev",
+    "SBList", "SBRecent", "SBGroup", "SBRename", "SBNote",
+    "SBQuickfix", "SBClear", "SBTrail", "SBTrailBack", "SBTrailForward",
+    "SBHealth", "SBReanchor",
+  },
+  keys = {
+    "<leader>bm", "<leader>bd", "<leader>bn", "<leader>bp",
+    "<leader>bl", "<leader>br", "<leader>ba", "<leader>bq",
+    "<leader>bT", "<leader>b[", "<leader>b]",
+    "<leader>bN", "<leader>bP",
+  },
   config = function()
     require("semantic-bookmarks").setup()
   end,
 }
 ```
+
+If you override the default keybindings in `setup()`, update the `keys` list to match so lazy-loading still triggers correctly.
 
 ### packer.nvim
 

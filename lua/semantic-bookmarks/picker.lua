@@ -111,25 +111,14 @@ local function delete_bm(bm, bms)
   end
 end
 
---- Prompt for a group name (synchronous) and apply it to bm.
---- Returns true if the group changed, false if cancelled/unchanged.
-local function prompt_group_sync(bm)
-  local input = vim.fn.input("Group (empty to clear): ", bm.group or "")
-  -- vim.fn.input returns "" on both empty input AND <C-c> cancel, so we
-  -- treat nil-equivalent by checking if input is an empty string deliberately.
-  local new_group = input ~= "" and input or nil
-  if new_group == bm.group then return false end
-  bm.group = new_group
-  require("semantic-bookmarks.store").save()
-  return true
-end
-
---- Async group prompt (for fzf-lua and standalone use — uses vim.ui.input).
-local function prompt_group_async(bm, on_done)
+--- Prompt for a group name via vim.ui.input and apply it to bm.
+--- Correctly passes nil to the callback on <C-c> cancel (unlike vim.fn.input).
+--- on_done() is called after a change is saved; not called on cancel.
+local function prompt_group(bm, on_done)
   vim.ui.input(
     { prompt = "Group (empty to clear): ", default = bm.group or "" },
     function(input)
-      if input == nil then return end
+      if input == nil then return end  -- <C-c> cancel
       bm.group = input ~= "" and input or nil
       require("semantic-bookmarks.store").save()
       if on_done then on_done() end
@@ -256,15 +245,16 @@ local function open_telescope(bms)
       end)
 
       -- <C-g>: set / clear group, refresh in place.
+      -- Uses vim.ui.input so <C-c> correctly cancels (nil callback) rather
+      -- than being indistinguishable from an intentional clear.
       map({ "i", "n" }, "<C-g>", function()
         local sel = action_state.get_selected_entry()
         if not sel then return end
-        local changed = prompt_group_sync(sel.value)
-        if changed then
+        prompt_group(sel.value, function()
           action_state.get_current_picker(prompt_bufnr):refresh(
             make_finder(), { reset_prompt = false }
           )
-        end
+        end)
       end)
 
       -- <C-r>: rename label in place, refresh.
@@ -282,15 +272,21 @@ local function open_telescope(bms)
       end)
 
       -- <C-n>: add / edit / clear annotation note, refresh in place.
+      -- Uses vim.ui.input so <C-c> correctly cancels without touching the note.
       map({ "i", "n" }, "<C-n>", function()
         local sel = action_state.get_selected_entry()
         if not sel then return end
-        local bm    = sel.value
-        local input = vim.fn.input("Note (empty to clear): ", bm.note or "")
-        bm.note = input ~= "" and input or nil
-        require("semantic-bookmarks.store").save()
-        action_state.get_current_picker(prompt_bufnr):refresh(
-          make_finder(), { reset_prompt = false }
+        local bm = sel.value
+        vim.ui.input(
+          { prompt = "Note (empty to clear): ", default = bm.note or "" },
+          function(input)
+            if input == nil then return end  -- <C-c> cancel
+            bm.note = input ~= "" and input or nil
+            require("semantic-bookmarks.store").save()
+            action_state.get_current_picker(prompt_bufnr):refresh(
+              make_finder(), { reset_prompt = false }
+            )
+          end
         )
       end)
 
@@ -333,7 +329,9 @@ local function open_fzf(bms)
         if not (selected and selected[1]) then return end
         local bm = entry_map[selected[1]]
         if not bm then return end
-        vim.schedule(function() prompt_group_async(bm) end)
+        vim.schedule(function()
+          prompt_group(bm, function() open_fzf(bms) end)
+        end)
       end,
       ["ctrl-r"] = function(selected)
         if not (selected and selected[1]) then return end
@@ -353,10 +351,15 @@ local function open_fzf(bms)
         local bm = entry_map[selected[1]]
         if not bm then return end
         vim.schedule(function()
-          local input = vim.fn.input("Note (empty to clear): ", bm.note or "")
-          bm.note = input ~= "" and input or nil
-          require("semantic-bookmarks.store").save()
-          open_fzf(bms)
+          vim.ui.input(
+            { prompt = "Note (empty to clear): ", default = bm.note or "" },
+            function(input)
+              if input == nil then return end  -- <C-c> cancel
+              bm.note = input ~= "" and input or nil
+              require("semantic-bookmarks.store").save()
+              open_fzf(bms)
+            end
+          )
         end)
       end,
     },
