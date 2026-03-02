@@ -4,7 +4,7 @@ Structural bookmarks for Neovim, anchored to **Treesitter nodes** rather than li
 
 ## Features
 
-- Bookmarks anchor to the enclosing Treesitter node (function, class, struct, …)
+- Bookmarks anchor to the **innermost** meaningful Treesitter node — functions, methods, classes, loops, conditionals, variable declarations, imports, and more
 - **Multi-strategy resolution** when code changes: structural address → content fingerprint → fuzzy line match
 - **Confidence scoring** — `exact / probable / weak / lost` with colour-coded signs and virtual text
 - **Git branch-scoped** — each branch has its own bookmark set, switching branches swaps them automatically
@@ -75,14 +75,15 @@ require("semantic-bookmarks").setup({
   -- Type icons shown before the label in virtual text (requires Nerd Font).
   -- Set any category to "" to hide that icon.
   type_icons = {
-    func      = "󰊕",
-    method    = "󰆧",
-    class     = "󰠱",
-    struct    = "󱡠",
-    interface = "󰜰",
-    enum      = "󰕘",
-    module    = "󰏗",
-    control   = "󰅂",
+    func      = "󰊕",  -- functions / arrow functions
+    method    = "󰆧",  -- methods
+    class     = "󰠱",  -- classes, impls, type aliases
+    struct    = "󱡠",  -- structs
+    interface = "󰜰",  -- interfaces, traits
+    enum      = "󰕘",  -- enums
+    module    = "󰏗",  -- modules, namespaces, imports/exports
+    control   = "󰅂",  -- if/for/while/switch/try/return …
+    variable  = "󰀫",  -- const/let/var declarations, assignments
   },
 
   -- Sign column priority. Raise above LSP/diagnostic signs (typically 10–11)
@@ -107,15 +108,14 @@ require("semantic-bookmarks").setup({
   -- Show the bookmark label as virtual text at the end of the line.
   virtual_text = true,
 
-  -- Treesitter node types to prefer when anchoring, innermost match wins.
-  node_type_priority = {
-    "function_definition", "function_declaration",
-    "method_definition",   "method_declaration",
-    "arrow_function",      "local_function",
-    "class_definition",    "class_declaration",
-    "if_statement",        "for_statement",
-    "while_statement",     "do_statement",
-  },
+  -- Set of Treesitter node types eligible for bookmarking.
+  -- The innermost matching ancestor wins — order does not affect selection.
+  -- The default covers 70+ types across TS/JS, Python, Go, Rust, Lua, C/C++:
+  --   functions, methods, classes, structs, interfaces, enums,
+  --   if/switch/match, for/while/loop, const/let/var declarations,
+  --   try/catch, return/throw, import/export, and more.
+  -- Add or remove entries freely; unknown types are silently ignored.
+  node_type_priority = { ... }, -- see source for full list
 })
 ```
 
@@ -202,11 +202,13 @@ Returns `"● 3"` for 3 bookmarks, `"● 2 ✗1"` when one is lost.
 
 ### Anchoring
 
-When you create a bookmark, the plugin walks up the Treesitter tree from the cursor to find the innermost node matching `node_type_priority`. Three pieces of data are stored:
+When you create a bookmark, the plugin walks up the Treesitter tree from the cursor and selects the **innermost** ancestor whose type appears in `node_type_priority`. Placing the cursor on a `for` loop anchors to that loop; placing it on the function name anchors to the function. Three pieces of data are stored:
 
 1. **Structural address** — the path from root to the node, e.g. `class_definition:Auth > method_definition:login`
 2. **Content fingerprint** — a hash of the node's text content
 3. **Fallback context** — the exact line text plus a few surrounding lines
+
+The bookmark label is the node's identifier when one exists (e.g. `processData`), or the first line of the node's source text for unnamed nodes like loops and conditionals (e.g. `for (const entry of entries)…`).
 
 ### Resolution pipeline
 

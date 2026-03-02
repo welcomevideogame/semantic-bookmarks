@@ -4,31 +4,91 @@ local M = {}
 local config = require("semantic-bookmarks.config")
 
 -- Maps Treesitter node types (across languages) to icon category keys.
+-- Categories must match keys in config.type_icons.
 local NODE_CATEGORY = {
   -- functions
-  function_definition   = "func",  function_declaration  = "func",
-  function_item         = "func",  func_declaration      = "func",
-  func_literal          = "func",  local_function        = "func",
-  arrow_function        = "func",  anonymous_function    = "func",
+  function_definition            = "func",
+  function_declaration           = "func",
+  function_item                  = "func",   -- Rust
+  func_declaration               = "func",   -- Go
+  func_literal                   = "func",   -- Go anonymous
+  local_function                 = "func",   -- Lua
+  arrow_function                 = "func",
+  anonymous_function             = "func",
+  function_expression            = "func",
+  generator_function             = "func",
+  generator_function_declaration = "func",
   -- methods
-  method_definition     = "method", method_declaration   = "method",
-  -- classes
-  class_definition      = "class",  class_declaration    = "class",
+  method_definition              = "method",
+  method_declaration             = "method",
+  -- classes / types
+  class_definition               = "class",
+  class_declaration              = "class",
+  impl_item                      = "class",  -- Rust
+  type_alias_declaration         = "class",  -- TS
+  type_declaration               = "class",  -- Go
   -- structs
-  struct_item           = "struct", struct_type          = "struct",
-  struct_declaration    = "struct",
+  struct_item                    = "struct",
+  struct_type                    = "struct",
+  struct_declaration             = "struct",
   -- interfaces / traits
-  interface_declaration = "interface", trait_item         = "interface",
-  protocol_declaration  = "interface",
+  interface_declaration          = "interface",
+  trait_item                     = "interface",
+  protocol_declaration           = "interface",
   -- enums
-  enum_item             = "enum",   enum_declaration     = "enum",
-  enum_definition       = "enum",
-  -- modules / namespaces
-  module                = "module", module_declaration   = "module",
-  namespace_declaration = "module",
-  -- control flow
-  if_statement          = "control", for_statement       = "control",
-  while_statement       = "control", do_statement        = "control",
+  enum_item                      = "enum",
+  enum_declaration               = "enum",
+  enum_definition                = "enum",
+  -- modules / namespaces / imports / exports
+  module                         = "module",
+  module_declaration             = "module",
+  namespace_declaration          = "module",
+  import_statement               = "module",
+  import_declaration             = "module",
+  import_from_statement          = "module",
+  export_statement               = "module",
+  use_declaration                = "module",
+  -- control flow (conditionals, loops, error handling, returns)
+  if_statement                   = "control",
+  if_expression                  = "control",
+  switch_statement               = "control",
+  switch_expression              = "control",
+  match_expression               = "control",
+  match_statement                = "control",
+  conditional_expression         = "control",
+  for_statement                  = "control",
+  for_of_statement               = "control",
+  for_in_statement               = "control",
+  for_expression                 = "control",
+  for_generic_statement          = "control",
+  for_numeric_statement          = "control",
+  while_statement                = "control",
+  while_expression               = "control",
+  loop_expression                = "control",
+  do_statement                   = "control",
+  repeat_statement               = "control",
+  try_statement                  = "control",
+  catch_clause                   = "control",
+  finally_clause                 = "control",
+  with_statement                 = "control",
+  defer_statement                = "control",
+  return_statement               = "control",
+  return_expression              = "control",
+  throw_statement                = "control",
+  raise_statement                = "control",
+  go_statement                   = "control",
+  select_statement               = "control",
+  -- variable declarations / assignments
+  lexical_declaration            = "variable",
+  variable_declaration           = "variable",
+  short_var_declaration          = "variable",
+  var_declaration                = "variable",
+  let_declaration                = "variable",
+  assignment                     = "variable",
+  augmented_assignment           = "variable",
+  assignment_statement           = "variable",
+  local_declaration              = "variable",
+  declaration                    = "variable",
 }
 
 local SIGN_GROUP = "SemanticBookmarks"
@@ -114,7 +174,8 @@ local function place_one(bufnr, bm, index)
       local category = NODE_CATEGORY[bm.node_type]
       if category then
         local icons = config.options.type_icons or {}
-        type_icon = (icons[category] or "") .. " "
+        local icon  = icons[category] or ""
+        type_icon   = icon ~= "" and (icon .. " ") or ""
       end
     end
 
