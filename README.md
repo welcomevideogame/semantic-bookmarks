@@ -13,6 +13,8 @@ Structural bookmarks for Neovim, anchored to **Treesitter nodes** rather than li
 - **Trail navigation** — record a breadcrumb trail as you jump and navigate back/forward
 - **MRU sorting** — `:SBRecent` opens the picker sorted by most recently visited
 - **Cross-buffer navigation** — `:SBNext!` / `:SBPrev!` step through every bookmark in the project
+- **Annotations** — attach a freeform note to any bookmark; visible in the hover float, picker, and quickfix list
+- **Rich picker display** — kind labels (`function`, `control`, `variable`, …) and note previews in telescope, styled like LSP symbol search
 - **Type icons** — function, class, struct, interface, enum icons in virtual text (requires Nerd Font)
 - **Jump flash** — brief line highlight when landing on a bookmark
 - **Statusline integration** — `require("semantic-bookmarks").statusline()` for lualine / heirline
@@ -60,6 +62,7 @@ require("semantic-bookmarks").setup({
     prev          = "<leader>bp",   -- prev in current buffer
     next_global   = "<leader>bN",   -- next across all files
     prev_global   = "<leader>bP",   -- prev across all files
+    note          = "<leader>ba",   -- add/edit annotation note
     list          = "<leader>bl",   -- open picker
     recent        = "<leader>br",   -- open picker sorted by recency
     quickfix      = "<leader>bq",
@@ -133,6 +136,7 @@ require("semantic-bookmarks").setup({
 | `:SBRecent [group]` | Open picker sorted by most recently visited |
 | `:SBGroup [name]` | Assign or clear a group tag on the bookmark at cursor |
 | `:SBRename <label>` | Rename the bookmark at cursor |
+| `:SBNote [text]` | Add, edit, or clear the annotation note on the bookmark at cursor |
 | `:SBClear [group]` | Delete all bookmarks (optional group filter), with confirmation |
 | `:SBQuickfix [group]` | Populate the quickfix list |
 | `:SBTrail` | Toggle trail recording |
@@ -152,6 +156,7 @@ When the picker is open (telescope or fzf-lua):
 | `<C-d>` / `ctrl-d` | Delete bookmark (telescope: refreshes in place) |
 | `<C-g>` / `ctrl-g` | Set or clear group tag |
 | `<C-r>` / `ctrl-r` | Rename bookmark label |
+| `<C-n>` / `ctrl-n` | Add, edit, or clear annotation note |
 
 ## Highlight groups
 
@@ -209,6 +214,14 @@ When you create a bookmark, the plugin walks up the Treesitter tree from the cur
 3. **Fallback context** — the exact line text plus a few surrounding lines
 
 The bookmark label is the node's identifier when one exists (e.g. `processData`), or the first line of the node's source text for unnamed nodes like loops and conditionals (e.g. `for (const entry of entries)…`).
+
+### Annotations
+
+Attach a freeform note to any bookmark with `:SBNote [text]` (or `<C-n>` in the picker). Notes are persisted in the same JSON file as the bookmark and appear in:
+
+- The hover float (`hover = true` in config)
+- The telescope / fzf-lua picker entry (first line, truncated)
+- The quickfix list `text` field alongside the label
 
 ### Resolution pipeline
 

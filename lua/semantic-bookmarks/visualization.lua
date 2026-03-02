@@ -233,6 +233,17 @@ local function hover_lines(bm)
   local icon  = conf_icon[bm.confidence or "exact"] or ""
   local lines = { " ● " .. (bm.label or "bookmark"), "" }
 
+  if bm.note and bm.note ~= "" then
+    local note_lines = vim.split(bm.note, "\n", { plain = true })
+    for i = 1, math.min(3, #note_lines) do
+      local l = note_lines[i]
+      if #l > 52 then l = l:sub(1, 49) .. "…" end
+      lines[#lines + 1] = "  " .. l
+    end
+    if #note_lines > 3 then lines[#lines + 1] = "  …" end
+    lines[#lines + 1] = ""
+  end
+
   if bm.group then
     lines[#lines + 1] = "  group       " .. bm.group
   end
@@ -284,5 +295,9 @@ function M.setup()
   define_highlights()
   M.define_signs()
 end
+
+-- Expose the node-type → category map so the picker can derive kind labels
+-- without duplicating the table.
+M.NODE_CATEGORY = NODE_CATEGORY
 
 return M

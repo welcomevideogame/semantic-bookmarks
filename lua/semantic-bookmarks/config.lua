@@ -6,6 +6,7 @@ M.defaults = {
     delete = "<leader>bd",
     next   = "<leader>bn",
     prev   = "<leader>bp",
+    note          = "<leader>ba",
     list          = "<leader>bl",
     quickfix      = "<leader>bq",
     trail_toggle  = "<leader>bT",

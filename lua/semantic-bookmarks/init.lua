@@ -184,6 +184,7 @@ function M._register_keybindings()
   map(kb.delete,        function() M.delete() end,            "Semantic bookmark: delete")
   map(kb.next,          function() navigation.next() end,     "Semantic bookmark: next in buffer")
   map(kb.prev,          function() navigation.prev() end,     "Semantic bookmark: prev in buffer")
+  map(kb.note,          function() M.note() end,              "Semantic bookmark: add/edit note")
   map(kb.list,          function() M.list() end,              "Semantic bookmark: open picker")
   map(kb.quickfix,      function() M.to_quickfix() end,       "Semantic bookmark: send to quickfix")
   map(kb.trail_toggle,  function() trail.toggle() end,             "Semantic bookmark: toggle trail recording")
@@ -312,11 +313,16 @@ function M.to_quickfix(group_name)
 
   local qf_items = {}
   for _, bm in ipairs(bms) do
+    local qf_text = bm.label or "bookmark"
+    if bm.note and bm.note ~= "" then
+      local first_line = bm.note:match("^([^\n]+)") or bm.note
+      qf_text = qf_text .. "  · " .. first_line
+    end
     qf_items[#qf_items + 1] = {
       filename = bm.file,
       lnum     = (bm.row or 0) + 1,
       col      = (bm.col or 0) + 1,
-      text     = bm.label or "bookmark",
+      text     = qf_text,
     }
   end
 
@@ -368,6 +374,37 @@ function M.clear(group_name)
     ("[semantic-bookmarks] Cleared %d bookmark(s)%s"):format(#bms, scope),
     vim.log.levels.INFO
   )
+end
+
+--- Add, edit, or clear the annotation note on the bookmark at the cursor.
+--- `text` is optional; when omitted the user is prompted via vim.ui.input.
+--- Passing an empty string clears the note.
+function M.note(text)
+  local bufnr = vim.api.nvim_get_current_buf()
+  local row   = vim.api.nvim_win_get_cursor(0)[1] - 1
+
+  local bm = store.find_at(bufnr, row)
+  if not bm then
+    vim.notify("[semantic-bookmarks] No bookmark at cursor", vim.log.levels.WARN)
+    return
+  end
+
+  local function apply(input)
+    if input == nil then return end  -- user cancelled
+    bm.note = input ~= "" and input or nil
+    store.save()
+    vim.notify(
+      bm.note and "[semantic-bookmarks] Note saved"
+              or  "[semantic-bookmarks] Note cleared",
+      vim.log.levels.INFO
+    )
+  end
+
+  if text ~= nil then
+    apply(text)
+  else
+    vim.ui.input({ prompt = "Note (empty to clear): ", default = bm.note or "" }, apply)
+  end
 end
 
 --- Rename the bookmark at (or containing) the current cursor position.
