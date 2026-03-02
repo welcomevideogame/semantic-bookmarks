@@ -62,6 +62,7 @@ require("semantic-bookmarks").setup({
     prev          = "<leader>bp",   -- prev in current buffer
     next_global   = "<leader>bN",   -- next across all files
     prev_global   = "<leader>bP",   -- prev across all files
+    note          = "<leader>ba",   -- add/edit annotation note
     list          = "<leader>bl",   -- open picker
     recent        = "<leader>br",   -- open picker sorted by recency
     quickfix      = "<leader>bq",

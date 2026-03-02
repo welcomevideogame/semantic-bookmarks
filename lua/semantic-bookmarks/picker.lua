@@ -111,19 +111,27 @@ local function delete_bm(bm, bms)
   end
 end
 
---- Prompt for a group name and apply it to bm.
-local function prompt_group(bm, on_done)
+--- Prompt for a group name (synchronous) and apply it to bm.
+--- Returns true if the group changed, false if cancelled/unchanged.
+local function prompt_group_sync(bm)
+  local input = vim.fn.input("Group (empty to clear): ", bm.group or "")
+  -- vim.fn.input returns "" on both empty input AND <C-c> cancel, so we
+  -- treat nil-equivalent by checking if input is an empty string deliberately.
+  local new_group = input ~= "" and input or nil
+  if new_group == bm.group then return false end
+  bm.group = new_group
+  require("semantic-bookmarks.store").save()
+  return true
+end
+
+--- Async group prompt (for fzf-lua and standalone use — uses vim.ui.input).
+local function prompt_group_async(bm, on_done)
   vim.ui.input(
     { prompt = "Group (empty to clear): ", default = bm.group or "" },
     function(input)
       if input == nil then return end
       bm.group = input ~= "" and input or nil
       require("semantic-bookmarks.store").save()
-      vim.notify(
-        bm.group and ("[semantic-bookmarks] Group set: " .. bm.group)
-                 or  "[semantic-bookmarks] Group cleared",
-        vim.log.levels.INFO
-      )
       if on_done then on_done() end
     end
   )
@@ -247,13 +255,16 @@ local function open_telescope(bms)
         )
       end)
 
-      -- <C-g>: close picker, prompt for group.
+      -- <C-g>: set / clear group, refresh in place.
       map({ "i", "n" }, "<C-g>", function()
         local sel = action_state.get_selected_entry()
         if not sel then return end
-        local bm = sel.value
-        actions.close(prompt_bufnr)
-        vim.schedule(function() prompt_group(bm) end)
+        local changed = prompt_group_sync(sel.value)
+        if changed then
+          action_state.get_current_picker(prompt_bufnr):refresh(
+            make_finder(), { reset_prompt = false }
+          )
+        end
       end)
 
       -- <C-r>: rename label in place, refresh.
@@ -322,7 +333,7 @@ local function open_fzf(bms)
         if not (selected and selected[1]) then return end
         local bm = entry_map[selected[1]]
         if not bm then return end
-        vim.schedule(function() prompt_group(bm) end)
+        vim.schedule(function() prompt_group_async(bm) end)
       end,
       ["ctrl-r"] = function(selected)
         if not (selected and selected[1]) then return end
