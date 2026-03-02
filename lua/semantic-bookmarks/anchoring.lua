@@ -60,11 +60,24 @@ function M.build_structural_address(node, bufnr)
 end
 
 --- Return a short human-readable label for a node.
---- Returns just the identifier name (e.g. "processData") when one exists,
---- falling back to the node type only when there is no name child.
+--- For named nodes (functions, classes, variables with an identifier child)
+--- returns the identifier text.  For anonymous control-flow and declaration
+--- nodes (if, for, const …) returns the first line of the node's source text,
+--- truncated to 40 characters, so the virtual-text label reads like code.
 function M.get_node_label(node, bufnr)
   local name = get_node_name(node, bufnr)
-  return name or node:type()
+  if name then return name end
+
+  -- Use the first non-empty line of the node's own text as the label.
+  local text       = vim.treesitter.get_node_text(node, bufnr)
+  local first_line = text:match("^([^\n]+)") or text
+  first_line       = first_line:match("^%s*(.-)%s*$") -- strip surrounding whitespace
+
+  if #first_line > 40 then
+    first_line = first_line:sub(1, 37) .. "…"
+  end
+
+  return first_line ~= "" and first_line or node:type()
 end
 
 --- Compute a simple polynomial hash of the node's text content.
@@ -277,34 +290,31 @@ function M.resolve_node(bufnr, row, col)
     return nil, "no_node"
   end
 
-  local priority = config.options.node_type_priority or {}
-
-  -- Build a quick lookup for O(1) priority checks.
-  local priority_set = {}
-  for rank, t in ipairs(priority) do
-    priority_set[t] = rank
+  -- Build a fast lookup set from the bookmarkable node types list.
+  local allowed = config.options.node_type_priority or {}
+  local allowed_set = {}
+  for _, t in ipairs(allowed) do
+    allowed_set[t] = true
   end
 
-  -- Walk up from the leaf, collecting all ancestors that are priority types.
-  -- We want the innermost (most specific) priority node.
+  -- Walk up from the leaf and take the FIRST (innermost) ancestor whose type
+  -- is in the allowed set.  "Innermost" gives the most specific semantic unit
+  -- at the cursor: if the cursor is on a `for` loop inside a function the loop
+  -- is selected, not the enclosing function.
   local best = nil
-  local best_rank = math.huge
 
   local current = leaf
   while current and current ~= root do
-    local rank = priority_set[current:type()]
-    if rank and rank < best_rank then
+    if allowed_set[current:type()] then
       best = current
-      best_rank = rank
+      break
     end
     current = current:parent()
   end
 
-  -- If no priority type matched (e.g. the language uses different node type
-  -- names than our list), do a second walk looking for the nearest ancestor
-  -- that has a meaningful name child.  This is language-agnostic and handles
-  -- cases like Rust's `function_item` or Go's `function_declaration` not
-  -- being in the user's priority list.
+  -- If no allowed type matched (e.g. the language uses node type names not yet
+  -- in the user's list), fall back to the nearest ancestor that has a
+  -- meaningful identifier child.  This is language-agnostic.
   if not best then
     local cur = leaf
     while cur and cur ~= root do
