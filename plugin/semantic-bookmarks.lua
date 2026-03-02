@@ -45,6 +45,10 @@ vim.api.nvim_create_user_command("SBRename", function(opts)
   require("semantic-bookmarks").rename(opts.args)
 end, { nargs = 1, desc = "Rename the bookmark at cursor" })
 
+vim.api.nvim_create_user_command("SBNote", function(opts)
+  require("semantic-bookmarks").note(opts.args ~= "" and opts.args or nil)
+end, { nargs = "?", desc = "Add, edit, or clear the annotation note on the bookmark at cursor" })
+
 vim.api.nvim_create_user_command("SBClear", function(opts)
   require("semantic-bookmarks").clear(opts.args ~= "" and opts.args or nil)
 end, { nargs = "?", desc = "Delete all bookmarks (optional: group filter), with confirmation" })

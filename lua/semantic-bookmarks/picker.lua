@@ -2,8 +2,10 @@
 ---
 --- Keybindings (telescope & fzf-lua):
 ---   <CR>   / default — jump to bookmark
----   <C-d>            — delete bookmark (telescope: refreshes in place)
----   <C-g>            — set / clear group tag
+---   <C-d>  / ctrl-d  — delete bookmark (telescope: refreshes in place)
+---   <C-g>  / ctrl-g  — set / clear group tag
+---   <C-r>  / ctrl-r  — rename bookmark label
+---   <C-n>  / ctrl-n  — add / edit / clear annotation note
 local M = {}
 
 local confidence_icon = {
@@ -11,6 +13,19 @@ local confidence_icon = {
   probable = "◐",
   weak     = "◌",
   lost     = "✗",
+}
+
+-- Human-readable kind labels, keyed by visualization.NODE_CATEGORY values.
+local KIND_LABEL = {
+  func      = "function",
+  method    = "method",
+  class     = "class",
+  struct    = "struct",
+  interface = "interface",
+  enum      = "enum",
+  module    = "module",
+  control   = "control",
+  variable  = "variable",
 }
 
 local function get_backend()
@@ -27,12 +42,39 @@ local function get_backend()
   end
 end
 
+--- Derive kind label and type icon for a bookmark.
+--- Returns category, kind_label, icon_glyph, icon_hl.
+local function bm_kind_info(bm)
+  local vis      = require("semantic-bookmarks.visualization")
+  local cfg      = require("semantic-bookmarks.config").options
+  local category = vis.NODE_CATEGORY[bm.node_type or ""] or ""
+  local kind     = KIND_LABEL[category] or ""
+  local icon     = (cfg.type_icons or {})[category] or ""
+  local icon_hl  = ((cfg.signs or {})[bm.confidence or "exact"] or {}).hl or "SBSignExact"
+  return category, kind, icon, icon_hl
+end
+
+--- Truncate string s to at most n display characters, appending "…".
+local function trunc(s, n)
+  if #s <= n then return s end
+  return s:sub(1, n - 1) .. "…"
+end
+
+--- Format a single-line entry for fzf-lua and the native fallback.
+--- Includes confidence icon, kind, label, note preview, and file:line.
 local function format_entry(bm)
-  local icon      = confidence_icon[bm.confidence or "exact"] or "●"
+  local _, kind, _, _ = bm_kind_info(bm)
+  local conf_mark = confidence_icon[bm.confidence or "exact"] or "●"
   local group_tag = bm.group and ("[" .. bm.group .. "] ") or ""
   local rel_file  = vim.fn.fnamemodify(bm.file or "", ":~:.")
-  return ("%s %s%s  %s:%d"):format(
-    icon, group_tag, bm.label or "?", rel_file, (bm.row or 0) + 1
+  local note_str  = ""
+  if bm.note and bm.note ~= "" then
+    local preview = bm.note:match("^([^\n]+)") or bm.note
+    note_str = "  · " .. trunc(preview, 30)
+  end
+  return ("%s %-10s %s%s%s  %s:%d"):format(
+    conf_mark, kind, group_tag, bm.label or "?", note_str,
+    rel_file, (bm.row or 0) + 1
   )
 end
 
@@ -41,7 +83,6 @@ local function jump_to(bm)
   vim.cmd("edit " .. vim.fn.fnameescape(bm.file))
   vim.api.nvim_win_set_cursor(0, { bm.row + 1, bm.col or 0 })
   require("semantic-bookmarks.store").touch(bm.id)
-  -- Schedule so the buffer is fully rendered before flashing.
   vim.schedule(function()
     require("semantic-bookmarks.visualization").flash(
       vim.api.nvim_get_current_buf(), bm.row
@@ -57,7 +98,6 @@ local function delete_bm(bm, bms)
   for i, b in ipairs(bms) do
     if b.id == bm.id then table.remove(bms, i); break end
   end
-  -- Refresh signs; fall back to file lookup if bufnr was never hydrated.
   local bufnr = bm.bufnr
   if not bufnr then
     for _, b in ipairs(vim.api.nvim_list_bufs()) do
@@ -72,12 +112,11 @@ local function delete_bm(bm, bms)
 end
 
 --- Prompt for a group name and apply it to bm.
---- on_done() is called (if provided) after the input is resolved.
 local function prompt_group(bm, on_done)
   vim.ui.input(
     { prompt = "Group (empty to clear): ", default = bm.group or "" },
     function(input)
-      if input == nil then return end  -- user cancelled
+      if input == nil then return end
       bm.group = input ~= "" and input or nil
       require("semantic-bookmarks.store").save()
       vim.notify(
@@ -94,23 +133,73 @@ end
 -- Backends
 -- ---------------------------------------------------------------------------
 
---- Telescope backend. bms is the shared list so make_finder() always reflects
---- the current state after deletions.
+--- Telescope backend — rich multi-column entry display.
 local function open_telescope(bms)
-  local pickers      = require("telescope.pickers")
-  local finders      = require("telescope.finders")
-  local previewers   = require("telescope.previewers")
-  local conf         = require("telescope.config").values
-  local actions      = require("telescope.actions")
-  local action_state = require("telescope.actions.state")
-  local vis          = require("semantic-bookmarks.visualization")
+  local pickers       = require("telescope.pickers")
+  local finders       = require("telescope.finders")
+  local previewers    = require("telescope.previewers")
+  local conf          = require("telescope.config").values
+  local actions       = require("telescope.actions")
+  local action_state  = require("telescope.actions.state")
+  local entry_display = require("telescope.pickers.entry_display")
+  local vis           = require("semantic-bookmarks.visualization")
+
+  -- Fixed-width columns: icon | kind | label | note+location
+  local displayer = entry_display.create({
+    separator = "  ",
+    items = {
+      { width = 2  },        -- type icon (or confidence mark)
+      { width = 10 },        -- kind label
+      { width = 36 },        -- bookmark label (truncated)
+      { remaining = true },  -- note preview + file:line
+    },
+  })
+
+  local function make_display(entry)
+    local bm                       = entry.value
+    local _, kind, icon, icon_hl   = bm_kind_info(bm)
+    -- Fall back to confidence mark when no type icon is configured.
+    local glyph = icon ~= "" and icon or confidence_icon[bm.confidence or "exact"] or "●"
+
+    local label = bm.label or "?"
+    if bm.group then label = "[" .. bm.group .. "] " .. label end
+
+    local location = vim.fn.fnamemodify(bm.file or "", ":~:.") .. ":" .. ((bm.row or 0) + 1)
+    local tail     = ""
+    if bm.note and bm.note ~= "" then
+      local preview = bm.note:match("^([^\n]+)") or bm.note
+      tail = trunc(preview, 34) .. "  "
+    end
+    tail = tail .. location
+
+    return displayer({
+      { glyph,            icon_hl   },
+      { kind,             "Comment" },
+      { trunc(label, 36), "Normal"  },
+      { tail,             "Comment" },
+    })
+  end
+
+  local function make_ordinal(bm)
+    local _, kind = bm_kind_info(bm)
+    return table.concat({
+      bm.label or "",
+      kind,
+      bm.note  or "",
+      bm.group or "",
+      vim.fn.fnamemodify(bm.file or "", ":~:."),
+    }, " ")
+  end
 
   local function make_finder()
     return finders.new_table({
       results = bms,
       entry_maker = function(bm)
-        local display = format_entry(bm)
-        return { value = bm, display = display, ordinal = display }
+        return {
+          value   = bm,
+          display = make_display,
+          ordinal = make_ordinal(bm),
+        }
       end,
     })
   end
@@ -130,11 +219,12 @@ local function open_telescope(bms)
   })
 
   pickers.new({}, {
-    prompt_title = "Semantic Bookmarks  [<C-d> delete · <C-g> group · <C-r> rename]",
-    finder   = make_finder(),
-    sorter   = conf.generic_sorter({}),
+    prompt_title = "Semantic Bookmarks  [<C-d> del · <C-g> group · <C-r> rename · <C-n> note]",
+    finder    = make_finder(),
+    sorter    = conf.generic_sorter({}),
     previewer = previewer,
     attach_mappings = function(prompt_bufnr, map)
+
       -- <CR>: jump to bookmark.
       actions.select_default:replace(function()
         actions.close(prompt_bufnr)
@@ -157,7 +247,7 @@ local function open_telescope(bms)
         )
       end)
 
-      -- <C-g>: close picker, prompt for group, done.
+      -- <C-g>: close picker, prompt for group.
       map({ "i", "n" }, "<C-g>", function()
         local sel = action_state.get_selected_entry()
         if not sel then return end
@@ -166,14 +256,27 @@ local function open_telescope(bms)
         vim.schedule(function() prompt_group(bm) end)
       end)
 
-      -- <C-r>: rename label in place, refresh picker.
+      -- <C-r>: rename label in place, refresh.
       map({ "i", "n" }, "<C-r>", function()
         local sel = action_state.get_selected_entry()
         if not sel then return end
-        local bm      = sel.value
+        local bm        = sel.value
         local new_label = vim.fn.input("Rename: ", bm.label)
         if new_label == "" or new_label == bm.label then return end
         bm.label = new_label
+        require("semantic-bookmarks.store").save()
+        action_state.get_current_picker(prompt_bufnr):refresh(
+          make_finder(), { reset_prompt = false }
+        )
+      end)
+
+      -- <C-n>: add / edit / clear annotation note, refresh in place.
+      map({ "i", "n" }, "<C-n>", function()
+        local sel = action_state.get_selected_entry()
+        if not sel then return end
+        local bm    = sel.value
+        local input = vim.fn.input("Note (empty to clear): ", bm.note or "")
+        bm.note = input ~= "" and input or nil
         require("semantic-bookmarks.store").save()
         action_state.get_current_picker(prompt_bufnr):refresh(
           make_finder(), { reset_prompt = false }
@@ -185,7 +288,7 @@ local function open_telescope(bms)
   }):find()
 end
 
---- fzf-lua backend. Delete re-opens the picker with the updated list.
+--- fzf-lua backend.
 local function open_fzf(bms)
   local fzf       = require("fzf-lua")
   local entries   = {}
@@ -196,7 +299,7 @@ local function open_fzf(bms)
     entry_map[display]    = bm
   end
   fzf.fzf_exec(entries, {
-    prompt  = "Semantic Bookmarks [ctrl-d:del ctrl-g:group]> ",
+    prompt  = "Bookmarks [ctrl-d:del ctrl-g:group ctrl-r:rename ctrl-n:note]> ",
     actions = {
       ["default"] = function(selected)
         if selected and selected[1] then
@@ -232,6 +335,17 @@ local function open_fzf(bms)
             require("semantic-bookmarks.store").save()
             open_fzf(bms)
           end
+        end)
+      end,
+      ["ctrl-n"] = function(selected)
+        if not (selected and selected[1]) then return end
+        local bm = entry_map[selected[1]]
+        if not bm then return end
+        vim.schedule(function()
+          local input = vim.fn.input("Note (empty to clear): ", bm.note or "")
+          bm.note = input ~= "" and input or nil
+          require("semantic-bookmarks.store").save()
+          open_fzf(bms)
         end)
       end,
     },
